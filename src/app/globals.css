@@ -88,9 +88,6 @@ body {
 }
 
 @media print {
-  .no-print {
-    display: none !important;
-  }
   body {
     background-color: white !important;
   }
@@ -98,8 +95,13 @@ body {
     padding: 0 !important;
     margin: 0 !important;
   }
-  .print-report {
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
     box-shadow: none !important;
     border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 }
