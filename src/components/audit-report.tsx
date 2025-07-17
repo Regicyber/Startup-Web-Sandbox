@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { type AuditData } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion } from "@/components/ui/accordion";
 import { Button } from "./ui/button";
-import { Download, Calendar, Link as LinkIcon, Loader2, BarChart3 } from 'lucide-react';
+import { Download, Calendar, Link as LinkIcon, Loader2, BarChart3, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import ScoreBadge from "./score-badge";
 import AuditCategoryItem from "./audit-category";
@@ -84,6 +84,8 @@ export default function AuditReport({ data }: AuditReportProps) {
       setExpandedAccordions([]); // Collapse accordions after download
     }
   };
+
+  const pageSpeedUrl = `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(data.url)}`;
 
   return (
     <div className="space-y-8">
@@ -170,20 +172,28 @@ export default function AuditReport({ data }: AuditReportProps) {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-primary" />
-              Live Analysis
-            </CardTitle>
-            <CardDescription>
-              A live performance analysis powered by Google PageSpeed Insights.
-            </CardDescription>
+          <CardHeader className="flex-row items-start justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-6 w-6 text-primary" />
+                Live Analysis
+              </CardTitle>
+              <CardDescription>
+                A live performance analysis powered by Google PageSpeed Insights. This may not load if blocked by Google.
+              </CardDescription>
+            </div>
+            <Button asChild variant="outline" size="sm" className="ml-4 flex-shrink-0">
+                <a href={pageSpeedUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open Live Report
+                </a>
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="w-full aspect-video rounded-lg overflow-hidden border">
               <iframe
                 id="pagespeed-iframe"
-                src={`https://pagespeed.web.dev/analysis?url=${encodeURIComponent(data.url)}`}
+                src={pageSpeedUrl}
                 className="w-full h-full border-0"
                 title="PageSpeed Insights"
               ></iframe>
