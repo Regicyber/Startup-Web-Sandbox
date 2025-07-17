@@ -7,10 +7,12 @@ import { type AuditData } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion } from "@/components/ui/accordion";
 import { Button } from "./ui/button";
-import { Download, Calendar, Link as LinkIcon, Loader2, BarChart3, ExternalLink } from 'lucide-react';
+import { Download, Calendar, Link as LinkIcon, Loader2, BarChart3, ExternalLink, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import ScoreBadge from "./score-badge";
 import AuditCategoryItem from "./audit-category";
+import { getFullReport } from "@/app/actions";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "./ui/alert-dialog";
 
 interface AuditReportProps {
   data: AuditData;
@@ -23,25 +25,67 @@ export default function AuditReport({ data }: AuditReportProps) {
   const [expandedAccordions, setExpandedAccordions] = useState<string[]>([]);
   const allCategoryIds = data.categories.map(c => c.id);
 
+  const [isAiReportLoading, setIsAiReportLoading] = useState(false);
+  const [aiReport, setAiReport] = useState<any | null>(null);
+  const [isAiReportOpen, setIsAiReportOpen] = useState(false);
+
+  const handleGenerateAiReport = async () => {
+    setIsAiReportLoading(true);
+    setAiReport(null);
+    setIsAiReportOpen(true);
+    try {
+      const reports = data.categories.reduce((acc, category) => {
+        acc[`${category.id}Report`] = category.rawReport;
+        return acc;
+      }, {} as any);
+      const result = await getFullReport(reports);
+      setAiReport(result);
+    } catch (error) {
+      console.error(error);
+      setAiReport({ error: "Failed to generate the AI report. Please try again later." });
+    } finally {
+      setIsAiReportLoading(false);
+    }
+  };
+
+
   const handleDownloadPdf = async () => {
     const element = reportRef.current;
     if (!element) return;
 
     setIsDownloading(true);
-    
-    // 1. Expand all accordions and trigger summary generation
     setIsPreparing(true);
+    
+    // 1. Expand all accordions
     setExpandedAccordions(allCategoryIds);
 
     // Give components time to re-render with all content visible
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Trigger summary generation on all items
-    const summaryButtons = element.querySelectorAll<HTMLButtonElement>('[data-summary-button="true"]');
-    summaryButtons.forEach(button => button.click());
+    // 2. Trigger all summary generations
+    const summaryButtons = Array.from(element.querySelectorAll<HTMLButtonElement>('[data-summary-button="true"]'));
+    const summaryPromises = summaryButtons.map(button => {
+      button.click();
+      // This is a trick: we can't easily await the state update from the click,
+      // so we'll check for the button to be disabled (which happens on load)
+      // and then re-enabled (or removed) when loading is finished.
+      // A more robust way would be to lift state up, but this avoids major refactoring.
+      return new Promise<void>(resolve => {
+        const interval = setInterval(() => {
+          // The button is removed from the DOM once the summary is loaded
+          if (!document.body.contains(button)) {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 100);
+      });
+    });
 
-    // Wait for summaries to be generated (give it a few seconds)
-    await new Promise(resolve => setTimeout(resolve, 4000));
+    // 3. Wait for all summaries to be generated.
+    await Promise.all(summaryPromises);
+    
+    // Short extra delay for final DOM render
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     setIsPreparing(false);
 
@@ -51,39 +95,26 @@ export default function AuditReport({ data }: AuditReportProps) {
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight
       });
 
-      const imgData = canvas.toDataURL('image/png');
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-
       // A4 page size in mm: 210 x 297
-      const pdf = new jsPDF('p', 'mm', 'a4', true);
-      const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
-      const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
-
-      const canvasAspectRatio = imgWidth / imgHeight;
-      const pdfAspectRatio = pdfWidth / pdfHeight;
-      
-      let finalImgWidth, finalImgHeight;
-
-      // Fit image to page width
-      finalImgWidth = pdfWidth;
-      finalImgHeight = finalImgWidth / canvasAspectRatio;
-
+      const pageHeight = 297;
+      const imgWidth = 210; // A4 width in mm
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      let heightLeft = imgHeight;
       let position = 0;
-      let pageCount = 1;
-      const totalPages = Math.ceil(finalImgHeight / pdfHeight);
 
-      pdf.addImage(imgData, 'PNG', 0, position, finalImgWidth, finalImgHeight, undefined, 'FAST');
-      let remainingHeight = finalImgHeight - pdfHeight;
-
-      while (remainingHeight > 0) {
-        pageCount++;
-        position -= pdfHeight;
+      const pdf = new jsPDF('p', 'mm', 'a4', true);
+      pdf.addImage(canvas, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= pageHeight;
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, finalImgWidth, finalImgHeight, undefined, 'FAST');
-        remainingHeight -= pdfHeight;
+        pdf.addImage(canvas, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
       }
       
       pdf.save(`audit-report-${data.url.replace(/https?:\/\//, '')}.pdf`, { returnPromise: true });
@@ -99,9 +130,69 @@ export default function AuditReport({ data }: AuditReportProps) {
   const pageSpeedUrl = `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(data.url)}`;
 
   return (
-    <div className="space-y-8">
+    <>
+      <AlertDialog open={isAiReportOpen} onOpenChange={setIsAiReportOpen}>
+        <AlertDialogContent className="max-w-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-primary" />
+              Comprehensive AI Report
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              An AI-powered analysis of the full audit report.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto pr-4">
+            {isAiReportLoading && (
+              <div className="flex flex-col items-center gap-4 py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p>Analyzing all reports, this may take a moment...</p>
+              </div>
+            )}
+            {aiReport?.error && (
+              <p className="text-destructive">{aiReport.error}</p>
+            )}
+            {aiReport && !aiReport.error && (
+              <div className="space-y-6 text-sm">
+                <div>
+                  <h3 className="font-bold text-lg mb-2">Overall Summary</h3>
+                  <p className="text-muted-foreground whitespace-pre-wrap">{aiReport.overallSummary}</p>
+                </div>
+                 <div>
+                  <h3 className="font-bold text-lg mb-2">Key Strengths</h3>
+                  <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
+                    {aiReport.keyStrengths.map((strength: string, index: number) => <li key={index}>{strength}</li>)}
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg mb-2">Areas for Improvement</h3>
+                   <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
+                    {aiReport.areasForImprovement.map((item: string, index: number) => <li key={index}>{item}</li>)}
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg mb-2">Prioritized Action Plan</h3>
+                   <ul className="list-decimal pl-5 space-y-2 text-muted-foreground">
+                     {aiReport.actionPlan.map((action: { priority: string; task: string, justification: string }, index: number) => (
+                      <li key={index} className="mb-2">
+                        <strong className="text-foreground">{action.task}</strong> (Priority: {action.priority})
+                        <p className="text-xs pl-1">{action.justification}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
       <Card className="no-print">
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <CardTitle className="text-2xl">Audit Report</CardTitle>
             <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -117,19 +208,29 @@ export default function AuditReport({ data }: AuditReportProps) {
               </div>
             </div>
           </div>
-          <Button variant="outline" onClick={handleDownloadPdf} disabled={isDownloading}>
-            {isDownloading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {isPreparing ? 'Preparing...' : 'Downloading...'}
-              </>
-            ) : (
-              <>
-                <Download className="mr-2 h-4 w-4" />
-                Download PDF
-              </>
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleGenerateAiReport} disabled={isAiReportLoading}>
+              {isAiReportLoading ? (
+                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
+              Generate AI Report
+            </Button>
+            <Button variant="outline" onClick={handleDownloadPdf} disabled={isDownloading}>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {isPreparing ? 'Preparing...' : 'Downloading...'}
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </>
+              )}
+            </Button>
+          </div>
         </CardHeader>
       </Card>
       
@@ -187,26 +288,26 @@ export default function AuditReport({ data }: AuditReportProps) {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-6 w-6 text-primary" />
-                More Analysis
+                Live Analysis
               </CardTitle>
               <CardDescription>
-                Run a live performance analysis powered by Google PageSpeed Insights.
+                Run a live performance analysis powered by Google PageSpeed Insights for the most up-to-date data.
               </CardDescription>
             </div>
             <Button asChild variant="outline" size="sm" className="ml-4 flex-shrink-0">
                 <a href={pageSpeedUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="mr-2 h-4 w-4" />
-                    Open PageSpeed
+                    Open Live Report
                 </a>
             </Button>
           </CardHeader>
           <CardContent>
              <p className="text-sm text-muted-foreground">
-                Click the button above to open a real-time report from Google. This provides the most up-to-date and comprehensive analysis, including a live performance trace.
+                Click the button to open a real-time report from Google. This provides the most up-to-date and comprehensive analysis, including a live performance trace.
              </p>
           </CardContent>
         </Card>
       </div>
-    </div>
+    </>
   );
 }
