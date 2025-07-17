@@ -9,6 +9,7 @@ import { generateSummary } from "@/app/actions";
 import { Sparkles, Loader2, Rocket, ClipboardList } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { cn } from "@/lib/utils";
 
 interface AuditCategoryItemProps {
   category: AuditCategory;
