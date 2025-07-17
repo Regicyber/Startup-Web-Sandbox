@@ -37,8 +37,15 @@ export default function AuditReport({ data }: AuditReportProps) {
       const reports = data.categories.reduce((acc, category) => {
         acc[`${category.id}Report`] = category.rawReport;
         return acc;
-      }, {} as any);
-      const result = await getFullReport(reports);
+      }, {} as { [key: string]: string });
+      
+      const result = await getFullReport({
+        performanceReport: reports.performanceReport || '',
+        accessibilityReport: reports.accessibilityReport || '',
+        bestPracticesReport: reports.bestPracticesReport || '',
+        seoReport: reports.seoReport || '',
+      });
+
       setAiReport(result);
     } catch (error) {
       console.error(error);
