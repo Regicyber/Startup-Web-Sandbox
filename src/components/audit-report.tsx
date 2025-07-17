@@ -34,14 +34,16 @@ export default function AuditReport({ data }: AuditReportProps) {
     setExpandedAccordions(allCategoryIds);
 
     // Give components time to re-render with all content visible
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     // Trigger summary generation on all items
     const summaryButtons = element.querySelectorAll<HTMLButtonElement>('[data-summary-button="true"]');
     summaryButtons.forEach(button => button.click());
 
     // Wait for summaries to be generated (give it a few seconds)
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, 4000));
+    
+    setIsPreparing(false);
 
     try {
       const canvas = await html2canvas(element, {
@@ -49,29 +51,39 @@ export default function AuditReport({ data }: AuditReportProps) {
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
-        onclone: (document) => {
-          const clonedElement = document.querySelector('.print-area');
-          if (clonedElement) {
-             (clonedElement as HTMLElement).style.backgroundColor = 'white';
-             // You can add more print-specific styles here if needed
-          }
-        }
       });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4', true);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgWidth = imgProps.width;
-      const imgHeight = imgProps.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      
-      const totalPages = Math.ceil(imgHeight / (pdfHeight / ratio));
 
-      for (let i = 0; i < totalPages; i++) {
-        const yPos = -(i * pdfHeight / ratio);
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, yPos, imgWidth * ratio, imgHeight * ratio);
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+
+      // A4 page size in mm: 210 x 297
+      const pdf = new jsPDF('p', 'mm', 'a4', true);
+      const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
+
+      const canvasAspectRatio = imgWidth / imgHeight;
+      const pdfAspectRatio = pdfWidth / pdfHeight;
+      
+      let finalImgWidth, finalImgHeight;
+
+      // Fit image to page width
+      finalImgWidth = pdfWidth;
+      finalImgHeight = finalImgWidth / canvasAspectRatio;
+
+      let position = 0;
+      let pageCount = 1;
+      const totalPages = Math.ceil(finalImgHeight / pdfHeight);
+
+      pdf.addImage(imgData, 'PNG', 0, position, finalImgWidth, finalImgHeight, undefined, 'FAST');
+      let remainingHeight = finalImgHeight - pdfHeight;
+
+      while (remainingHeight > 0) {
+        pageCount++;
+        position -= pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, finalImgWidth, finalImgHeight, undefined, 'FAST');
+        remainingHeight -= pdfHeight;
       }
       
       pdf.save(`audit-report-${data.url.replace(/https?:\/\//, '')}.pdf`, { returnPromise: true });
@@ -80,7 +92,6 @@ export default function AuditReport({ data }: AuditReportProps) {
       console.error("Failed to download PDF", error);
     } finally {
       setIsDownloading(false);
-      setIsPreparing(false);
       setExpandedAccordions([]); // Collapse accordions after download
     }
   };
@@ -176,28 +187,23 @@ export default function AuditReport({ data }: AuditReportProps) {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-6 w-6 text-primary" />
-                Live Analysis
+                More Analysis
               </CardTitle>
               <CardDescription>
-                A live performance analysis powered by Google PageSpeed Insights. This may not load if blocked by Google.
+                Run a live performance analysis powered by Google PageSpeed Insights.
               </CardDescription>
             </div>
             <Button asChild variant="outline" size="sm" className="ml-4 flex-shrink-0">
                 <a href={pageSpeedUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="mr-2 h-4 w-4" />
-                    Open Live Report
+                    Open PageSpeed
                 </a>
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="w-full aspect-video rounded-lg overflow-hidden border">
-              <iframe
-                id="pagespeed-iframe"
-                src={pageSpeedUrl}
-                className="w-full h-full border-0"
-                title="PageSpeed Insights"
-              ></iframe>
-            </div>
+             <p className="text-sm text-muted-foreground">
+                Click the button above to open a real-time report from Google. This provides the most up-to-date and comprehensive analysis, including a live performance trace.
+             </p>
           </CardContent>
         </Card>
       </div>

@@ -16,9 +16,14 @@ export async function generateSummary(input: { report: string, section: string }
   
   try {
     const result = await summarizeAuditReport(validatedInput.data);
+    if (!result || !result.summary) {
+      // This handles cases where the AI returns a valid but empty response
+      throw new Error("AI returned an empty summary.");
+    }
     return result;
   } catch (error) {
     console.error("Error generating summary:", error);
+    // Ensure a consistent error response format
     return { summary: "Could not generate summary at this time." };
   }
 }
