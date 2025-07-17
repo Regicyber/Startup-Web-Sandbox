@@ -4,8 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
-  title: 'Audit Ace',
-  description: 'Instant SEO and performance analysis for your website.',
+  title: 'Startup Web Sandbox',
+  description: 'Instant analysis for your web app or sandbox environment.',
 };
 
 export default function RootLayout({

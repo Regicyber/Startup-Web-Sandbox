@@ -61,7 +61,7 @@ export default function Home() {
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BarChart className="text-primary h-8 w-8" />
-            <h1 className="text-2xl font-bold text-foreground">Audit Ace</h1>
+            <h1 className="text-2xl font-bold text-foreground">Startup Web Sandbox</h1>
           </div>
         </div>
       </header>
@@ -69,7 +69,7 @@ export default function Home() {
       <main className="flex-1 container mx-auto p-4 md:p-8">
         <Card className="max-w-3xl mx-auto no-print">
           <CardHeader>
-            <CardTitle className="text-2xl">Website Audit</CardTitle>
+            <CardTitle className="text-2xl">Website/App Audit</CardTitle>
             <CardDescription>Enter a URL to analyze its performance, accessibility, SEO, and more.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -126,7 +126,7 @@ export default function Home() {
       </main>
 
       <footer className="no-print py-4 px-4 md:px-8 text-center text-sm text-muted-foreground border-t">
-        <p>&copy; {new Date().getFullYear()} Audit Ace. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} Startup Web Sandbox. All rights reserved.</p>
       </footer>
     </>
   );
