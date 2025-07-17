@@ -39,7 +39,6 @@ export default function Home() {
     // Simulate API call and analysis
     setTimeout(() => {
       try {
-        window.open(`https://pagespeed.web.dev/analysis?url=${encodeURIComponent(data.url)}`, '_blank');
         const mockData = getMockAuditData(data.url);
         setAuditData(mockData);
       } catch (error) {
@@ -112,7 +111,6 @@ export default function Home() {
               <h2 className="text-xl font-semibold">Running Audits...</h2>
               <p className="text-muted-foreground max-w-md">
                 Please wait while we analyze your page. This might take a moment.
-                Your PageSpeed Insights report will open in a new tab.
               </p>
             </div>
           )}

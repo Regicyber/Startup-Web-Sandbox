@@ -20,6 +20,7 @@ export default function AuditCategoryItem({ category }: AuditCategoryItemProps) 
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
 
   const handleGenerateSummary = async () => {
+    if (summary) return; // Don't re-generate if summary already exists
     setIsSummaryLoading(true);
     setSummary(null);
     try {
@@ -72,7 +73,7 @@ export default function AuditCategoryItem({ category }: AuditCategoryItemProps) 
                 </div>
               )}
               {!summary && !isSummaryLoading && (
-                 <Button onClick={handleGenerateSummary} disabled={isSummaryLoading}>
+                 <Button onClick={handleGenerateSummary} disabled={isSummaryLoading} data-summary-button="true">
                   <Sparkles className="mr-2 h-4 w-4" />
                   Generate Summary
                 </Button>

@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { type AuditData } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion } from "@/components/ui/accordion";
 import { Button } from "./ui/button";
-import { Download, Calendar, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Download, Calendar, Link as LinkIcon, Loader2, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
 import ScoreBadge from "./score-badge";
 import AuditCategoryItem from "./audit-category";
@@ -19,57 +19,69 @@ interface AuditReportProps {
 export default function AuditReport({ data }: AuditReportProps) {
   const reportRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [expandedAccordions, setExpandedAccordions] = useState<string[]>([]);
+  const allCategoryIds = data.categories.map(c => c.id);
 
   const handleDownloadPdf = async () => {
     const element = reportRef.current;
     if (!element) return;
 
     setIsDownloading(true);
+    
+    // 1. Expand all accordions and trigger summary generation
+    setIsPreparing(true);
+    setExpandedAccordions(allCategoryIds);
+
+    // Give components time to re-render with all content visible
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Trigger summary generation on all items
+    const summaryButtons = element.querySelectorAll<HTMLButtonElement>('[data-summary-button="true"]');
+    summaryButtons.forEach(button => button.click());
+
+    // Wait for summaries to be generated (give it a few seconds)
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     try {
       const canvas = await html2canvas(element, {
         scale: 2, 
         useCORS: true,
         backgroundColor: '#ffffff',
+        logging: false,
         onclone: (document) => {
-          // On the cloned document, we can add styles to prepare it for printing
           const clonedElement = document.querySelector('.print-area');
           if (clonedElement) {
-            // Example of forcing a white background for consistent PDF output
              (clonedElement as HTMLElement).style.backgroundColor = 'white';
+             // You can add more print-specific styles here if needed
           }
         }
       });
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdf = new jsPDF('p', 'mm', 'a4', true);
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgWidth = imgProps.width;
+      const imgHeight = imgProps.height;
       const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const imgX = (pdfWidth - imgWidth * ratio) / 2;
       
-      // The total height of the image might be larger than one page.
-      // We need to add pages and draw parts of the image on each.
-      let heightLeft = imgHeight;
-      let position = 0;
+      const totalPages = Math.ceil(imgHeight / (pdfHeight / ratio));
 
-      pdf.addImage(imgData, 'PNG', imgX, 0, imgWidth * ratio, imgHeight * ratio);
-      heightLeft -= pdfHeight / ratio;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', imgX, position * ratio, imgWidth * ratio, imgHeight * ratio);
-        heightLeft -= pdfHeight / ratio;
+      for (let i = 0; i < totalPages; i++) {
+        const yPos = -(i * pdfHeight / ratio);
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, yPos, imgWidth * ratio, imgHeight * ratio);
       }
       
-      pdf.save(`audit-report-${data.url.replace(/https?:\/\//, '')}.pdf`);
+      pdf.save(`audit-report-${data.url.replace(/https?:\/\//, '')}.pdf`, { returnPromise: true });
 
     } catch(error) {
       console.error("Failed to download PDF", error);
     } finally {
       setIsDownloading(false);
+      setIsPreparing(false);
+      setExpandedAccordions([]); // Collapse accordions after download
     }
   };
 
@@ -96,7 +108,7 @@ export default function AuditReport({ data }: AuditReportProps) {
             {isDownloading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Downloading...
+                {isPreparing ? 'Preparing...' : 'Downloading...'}
               </>
             ) : (
               <>
@@ -144,11 +156,38 @@ export default function AuditReport({ data }: AuditReportProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Accordion type="single" collapsible className="w-full">
+            <Accordion 
+              type="multiple" 
+              className="w-full"
+              value={expandedAccordions}
+              onValueChange={setExpandedAccordions}
+            >
               {data.categories.map((category) => (
                 <AuditCategoryItem key={category.id} category={category} />
               ))}
             </Accordion>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-6 w-6 text-primary" />
+              Live Analysis
+            </CardTitle>
+            <CardDescription>
+              A live performance analysis powered by Google PageSpeed Insights.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="w-full aspect-video rounded-lg overflow-hidden border">
+              <iframe
+                id="pagespeed-iframe"
+                src={`https://pagespeed.web.dev/analysis?url=${encodeURIComponent(data.url)}`}
+                className="w-full h-full border-0"
+                title="PageSpeed Insights"
+              ></iframe>
+            </div>
           </CardContent>
         </Card>
       </div>
