@@ -15,7 +15,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, BarChart } from 'lucide-react';
 
 const FormSchema = z.object({
-  url: z.string().url({ message: "Please enter a valid URL." }),
+  url: z.string()
+    .min(1, { message: "Please enter a URL." })
+    .transform((url) => (url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`))
+    .pipe(z.string().url({ message: "Please enter a valid URL." })),
 });
 
 type FormValues = z.infer<typeof FormSchema>;
