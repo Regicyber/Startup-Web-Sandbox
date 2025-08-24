@@ -2,8 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 // @ts-ignore
 const cheerio = require('cheerio');
-// @ts-ignore
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { url } = req.query;
