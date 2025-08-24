@@ -1,7 +1,7 @@
 // Automated Accessibility Audit
 import type { NextApiRequest, NextApiResponse } from 'next';
 import fetch from 'node-fetch';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { url } = req.body;

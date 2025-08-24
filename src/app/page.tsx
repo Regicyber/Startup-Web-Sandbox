@@ -22,7 +22,7 @@ const scanDescriptions: Record<string, string> = {
   backup: "Validates backup and disaster recovery strategy documentation.",
 };
 
-function ScanAccordion({ label, description }: { label: string; description: string }) {
+function ScanAccordion({ label, description, children }: { label: string; description: string; children?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="border rounded-lg mb-2 bg-white">
@@ -38,10 +38,8 @@ function ScanAccordion({ label, description }: { label: string; description: str
       {open && (
         <div className="px-4 pb-3 text-sm text-muted-foreground">
           {description}
-          {/* Render children (scan results) below description */}
           <div className="mt-2">
-            {/* @ts-ignore */}
-            {typeof arguments[0].children !== 'undefined' ? arguments[0].children : null}
+            {children}
           </div>
         </div>
       )}
@@ -435,7 +433,7 @@ export default function Home() {
                                   {scanResults.social.openGraph && Object.keys(scanResults.social.openGraph).length > 0 ? (
                                     <ul className="ml-4">
                                       {Object.entries(scanResults.social.openGraph).map(([key, value]) => (
-                                        <li key={key}><span className="font-mono">{key}</span>: {value}</li>
+                                        <li key={key}><span className="font-mono">{key}</span>: {String(value)}</li>
                                       ))}
                                     </ul>
                                   ) : (
@@ -447,7 +445,7 @@ export default function Home() {
                                   {scanResults.social.twitter && Object.keys(scanResults.social.twitter).length > 0 ? (
                                     <ul className="ml-4">
                                       {Object.entries(scanResults.social.twitter).map(([key, value]) => (
-                                        <li key={key}><span className="font-mono">{key}</span>: {value}</li>
+                                        <li key={key}><span className="font-mono">{key}</span>: {String(value)}</li>
                                       ))}
                                     </ul>
                                   ) : (
